@@ -62,13 +62,14 @@ while(1):
     #     cv.circle(frame, (avg_x, avg_y), 10, (255, 255, 255), -1)
 
     M = cv.moments(max_cont)
+    (x, y, w, h) = cv.boundingRect(max_cont)
     if M['m00'] != 0:
         cx = int(M['m10'] / M['m00'])
         cy = int(M['m01'] / M['m00']) 
         cv.circle(frame, (cx, cy), 10, (255, 0, 0), -1)
+        cv.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 5)
 
     cv.imshow('frame',frame)
-    cv.imshow('mask',mask)
     cv.imshow('res',res)
     k = cv.waitKey(5) & 0xFF
     if k == 27:
