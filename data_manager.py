@@ -5,6 +5,8 @@ class Data_Manager:
     def __init__(self):
         self.data = "data.csv"
         self.shots = self.__get_shots_from_data()
+        self.scale_x = 1000
+        self.scale_y = 1000
 
     def add_shot(self, shot : Shot):
         """Adds shots to the data."""
@@ -16,7 +18,7 @@ class Data_Manager:
     def get_shots(self):
         """Returns a list of all the shots."""
         return self.__get_shots_from_data()
-    
+
     #TODO: doesn't work - best solution is csv -> list -> remove -> csv
 
     def __remove_shot(self, shot: Shot):

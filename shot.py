@@ -17,7 +17,7 @@ class Shot:
         return [self.posX, self.posY, self.is_3(), self.made, self.time] 
 
     def __hash__(self) -> int:
-        return hash(f"{self.posX}{self.posY}{self.is_3()}{self.made}{self.time}")
+        return self.time
     
     def __eq__(self, other: object) -> bool:
         return type(self) == type(other) and self.time == other.time
@@ -28,6 +28,6 @@ class Shot:
 def to_Shot(data) -> Shot:
     posX = float(data[0])
     posY = float(data[1])
-    made = bool(data[3])
+    made = eval(data[3])
     time = int(data[4])
-    return Shot(posX, posY,made, time)
+    return Shot(posX, posY, made, time)
