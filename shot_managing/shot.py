@@ -13,6 +13,7 @@ class Shot:
 
     #Order of data: 
     # posX | posY | 3pt | made | time
+    #TODO: is there any reason why is_3 is in the data?
     def to_data(self):
         return [self.posX, self.posY, self.is_3(), self.made, self.time] 
 
