@@ -1,6 +1,8 @@
 #instead of doing homography every frame, we can track the corners of the
 # driveway every frame and run the homography on those points
-
+#NOTE: right now the accuracy is set to like 25 for speed, but if we only run the
+#human tracking when a shot is detected, then we only need it for a couple frames 
+#and only need to keep track of the points
 import cv2
 import numpy as np
 from collections import deque
@@ -97,7 +99,7 @@ while True:
     #tracker stuff
     player_list = []
 
-    results = model.track(frame_gray, persist=True, classes=[0], tracker="bytetrack.yaml")
+    results = model.track(frame_gray, persist=True, classes=[0], tracker="bytetrack.yaml", conf=.25, verbose=False)
     # Check if there are active detections/tracks
     if results[0].boxes.id is not None:
         boxes = results[0].boxes.xyxy.int().cpu().tolist()
@@ -123,9 +125,14 @@ while True:
     pts_dst = np.float32([[0, 0], [court_w, 0], [0, court_h], [court_w, court_h]])
     H = cv2.getPerspectiveTransform(pts_src, pts_dst)
     court_frame = cv2.warpPerspective(frame, H, (court_w, court_h))
+
+    #TODO: wonder if it's better to use the tracked line or the computer one
+    cv2.line(court_frame, (0, 115), (court_w, 115), (0, 255, 0))
+    cv2.line(court_frame, (0, 115+96), (court_w, 115+96), (0, 255, 0))
+
     
     for (x, y) in player_list:
-        cv2.circle(court_frame, center=convert_to_homo(x, y, H), radius=5, color=(255, 0, 0), thickness=-1)
+        cv2.circle(court_frame, center=convert_to_homo(x, y, H), radius=5, color=(0,0,255), thickness=-1)
 
     # Show the newly tracked points
     cv2.imshow("Original View", frame)
