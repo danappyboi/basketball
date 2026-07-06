@@ -4,13 +4,14 @@
 import cv2
 import numpy as np
 from collections import deque
+from ultralytics import YOLO
 
-w = 118*2
+court_w = 118*2
 '''Width of the driveway in inches'''
-h = 115+96+124
+court_h = 115+96+124
 '''Height of the driveway in inches'''
-queue = deque(maxlen=15)
-'''A queue to store the last 10 points of the court '''
+queue = deque(maxlen=15) #TODO: test different queue sizes
+'''A queue to store the last 15 points of the court '''
 
 # Load the video file or webcam stream
 cap = cv2.VideoCapture("driveway_vid.mp4")
@@ -31,6 +32,9 @@ if not ret:
 
 old_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
 
+model = YOLO("yolo26n.pt") 
+
+
 # Initial point selection
 # TODO: make this something that is done first by the user
 og_p0 = np.array([[88, 186], [273, 150], [306, 367], [509, 193]], dtype=np.float32)
@@ -41,7 +45,18 @@ p0 = og_p0.copy().reshape(-1, 1, 2) # needs to be reshaped for some reason, idk
 
 
 
-flag = False # used for testing
+def convert_to_homo(x, y, H) :
+    '''Converts a point using the homography matrix `H`'''
+    # convert to homogeneous
+    homogeneous_point = np.array([x, y, 1.0])
+
+    result = np.dot(H, homogeneous_point)
+
+    # normalize by dividing by Z
+    new_x = (int) (result[0] / result[2])
+    new_y = (int) (result[1] / result[2])
+    print((new_x, new_y))
+    return (new_x, new_y)
 
 while True:
     ret, frame = cap.read()
@@ -78,17 +93,44 @@ while True:
             
             frame = cv2.circle(frame, (int(a), int(b)), 5, (0,255,0), -1)
     
-    # Show the newly tracked points
-    cv2.imshow("Original View", frame)
+    
+    #tracker stuff
+    player_list = []
+
+    results = model.track(frame_gray, persist=True, classes=[0], tracker="bytetrack.yaml")
+    # Check if there are active detections/tracks
+    if results[0].boxes.id is not None:
+        boxes = results[0].boxes.xyxy.int().cpu().tolist()
+        track_ids = results[0].boxes.id.int().cpu().tolist()
+
+        # Annotate each tracked human on the frame using OpenCV
+        for box, track_id in zip(boxes, track_ids):
+            x1, y1, x2, y2 = box
+            player_pt = ((x1+x2)/2, y2)
+            player_list.append(player_pt)
+            
+            # Draw bounding box (Green)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.circle(frame, center=(int(player_pt[0]), int(player_pt[1])), radius=5, color=(255, 0, 0), thickness=-1)
+            
+            # Display tracking ID text
+            label = f"ID: {track_id}"
+            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+    
 
     # Showing the court view based on those tracked points
     pts_src = good_new
-    pts_dst = np.float32([[0, 0], [w, 0], [0, h], [w, h]])
+    pts_dst = np.float32([[0, 0], [court_w, 0], [0, court_h], [court_w, court_h]])
     H = cv2.getPerspectiveTransform(pts_src, pts_dst)
-    court_frame = cv2.warpPerspective(frame, H, (w, h))
+    court_frame = cv2.warpPerspective(frame, H, (court_w, court_h))
     
+    for (x, y) in player_list:
+        cv2.circle(court_frame, center=convert_to_homo(x, y, H), radius=5, color=(255, 0, 0), thickness=-1)
+
+    # Show the newly tracked points
+    cv2.imshow("Original View", frame)
     cv2.imshow('Court View', court_frame)
-    
+
 
     # Break loop on 'ESC' key press
     if cv2.waitKey(30) & 0xFF == 27:
