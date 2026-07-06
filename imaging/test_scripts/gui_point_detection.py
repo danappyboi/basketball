@@ -3,6 +3,14 @@
 
 import cv2
 import numpy as np
+from collections import deque
+
+w = 118*2
+'''Width of the driveway in inches'''
+h = 115+96+124
+'''Height of the driveway in inches'''
+queue = deque(maxlen=15)
+'''A queue to store the last 10 points of the court '''
 
 # Load the video file or webcam stream
 cap = cv2.VideoCapture("driveway_vid.mp4")
@@ -14,9 +22,6 @@ lk_params = dict(
     criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03)
 )
 
-# Create random colors for drawing tracking trajectories
-color = np.random.randint(0, 255, (100, 3))
-
 # Read the initial frame
 ret, old_frame = cap.read()
 if not ret:
@@ -26,18 +31,17 @@ if not ret:
 
 old_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
 
-# --- Point Initialization ---
-# Option A: Automatically find sharp corner points to track
-# p0 = cv2.goodFeaturesToTrack(old_gray, maxCorners=100, qualityLevel=0.3, minDistance=7, blockSize=7)
+# Initial point selection
+# TODO: make this something that is done first by the user
+og_p0 = np.array([[88, 186], [273, 150], [306, 367], [509, 193]], dtype=np.float32)
+"""The original first 4 points"""
+queue.append(og_p0)
 
-# Option B: Uncomment below to define your own specific coordinates (X, Y) manually
-og_p0 = np.array([[88, 186], [273, 150], [509, 193], [306, 367]], dtype=np.float32)
-p0 = og_p0.copy().reshape(-1, 1, 2)
+p0 = og_p0.copy().reshape(-1, 1, 2) # needs to be reshaped for some reason, idk
 
-# Create a blank mask array to draw the historical tracking lines
-mask = np.zeros_like(old_frame)
 
-flag = False
+
+flag = False # used for testing
 
 while True:
     ret, frame = cap.read()
@@ -54,27 +58,37 @@ while True:
         good_new = np.where(st == 1, p1.squeeze(axis=1), og_p0)
         good_old = p0
 
+        #TODO: add corner detection, the corners are a good indication of where you should be
+        # if the point goes too far from the og point, move it back
         for i in range(good_new.shape[0]):
-            if np.linalg.norm(good_new[i] - og_p0[i]) > 20:
-                good_new = og_p0
+            if np.linalg.norm(good_new[i] - np.mean(queue, axis=0)[i]) > 5:
+                good_new[i] = np.mean(queue, axis=0)[i]
+        
+        queue.append(good_new)
 
+        #TODO: set og_p0 to the avg of the past couplee points
         # if not flag:
         #     print(good_new)
         #     flag = True
 
-        # Draw the tracking trajectories
+        # draw the point
         for i, (new, old) in enumerate(zip(good_new, good_old)):
-
             a, b = new.ravel()
             c, d = old.ravel()
             
-            # Draw lines connecting the old coordinates to the new coordinates
-            # mask = cv2.line(mask, (int(a), int(b)), (int(c), int(d)), (0, 255, 0), 2)
             frame = cv2.circle(frame, (int(a), int(b)), 5, (0,255,0), -1)
+    
+    # Show the newly tracked points
+    cv2.imshow("Original View", frame)
 
-    img = cv2.add(frame, mask)
-
-    cv2.imshow("Point Tracking (Lucas-Kanade)", img)
+    # Showing the court view based on those tracked points
+    pts_src = good_new
+    pts_dst = np.float32([[0, 0], [w, 0], [0, h], [w, h]])
+    H = cv2.getPerspectiveTransform(pts_src, pts_dst)
+    court_frame = cv2.warpPerspective(frame, H, (w, h))
+    
+    cv2.imshow('Court View', court_frame)
+    
 
     # Break loop on 'ESC' key press
     if cv2.waitKey(30) & 0xFF == 27:
